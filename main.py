@@ -14,7 +14,7 @@ bot = discord.Client(intents=intents)
 client = discovery.build(
   "commentanalyzer",
   "v1alpha1",
-  developerKey=os.getenv("perspective_key"),
+  developerKey=os.getenv("perspective_api"),
   discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",
   static_discovery=False,
 )
