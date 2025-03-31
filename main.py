@@ -32,20 +32,25 @@ async def on_message(message):
         await message.channel.send('Hello!')
     else:
       analyze = {
-        "comment": message.content,
-        "requestedAttributes": {
-          "TOXICITY": {},
-          "SEVERE_TOXICITY": {},
-          "IDENTITY_ATTACK": {},
-          "INSULT": {},
-          "PROFANITY": {},
-          "THREAT": {},
-          "SEXUALLY_EXPLICIT": {},
-          "FLIRTATION": {},
+        'comment': {'text': message.content},
+        'requestedAttributes': {
+          'TOXICITY': {},
+          'SEVERE_TOXICITY': {},
+          'IDENTITY_ATTACK': {},
+          'INSULT': {},
+          'PROFANITY': {},
+          'THREAT': {},
+          'SEXUALLY_EXPLICIT': {},
+          'FLIRTATION': {},
         },
-        "languages": ["en"]
+        'languages': ['en']
       }
-      response = await client.comments().analyze(body=analyze).execute()  
+      try:
+          response = client.comments().analyze(body=analyze).execute()
+          print(json.dumps(response, indent=2))
+      except Exception as e:
+          print(f"Error analyzing comment: {e}")
+          await message.channel.send("Sorry, I couldn't analyze that message.")  
       print(json.dumps(response, indent=2))
 
 try:
