@@ -63,11 +63,11 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
     reason = f"Content flagged for {offense_type} (Score: {score:.3f})"
 
     # Determine specific actions based on score threshold
-    if score > 0.9 and count >= 2:
+    if score > 0.9 and count > 2:
         full_warning += " User temporarily muted for 5 minutes."
         ping_role = True
         timeout_duration = datetime.timedelta(minutes=5)
-    elif score > 0.8 and count>=2:
+    elif score > 0.8 and count>2:
         full_warning += " Moderator review advised."
         ping_role = True
 
@@ -109,7 +109,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
 
     # logging
     logging:None|bool = True
-    if logging:    
+    if logging and score>0.8 and count>2:    
         logging_channel_id:None|discord.TextChannel = 1356741431250653355
         try:
             logging_channel = message.guild.get_channel(logging_channel_id)
@@ -174,10 +174,10 @@ async def on_message(message: discord.Message):
         print(f"Scores for message '{message.content[:50]}...' by {message.author}: {json.dumps(scores)}")
 
         highest_offense_type, highest_score = max(scores.items(), key=lambda item: item[1])
-        count = sum(1 for score in scores.values() if score > 0.8)
 
-        if highest_score > 0.7:
-            # Call helper function (no longer passing role ID)
+
+        if highest_score > 0.8:
+            count = sum(1 for score in scores.values() if score > 0.8)
             await handle_moderation(message, highest_offense_type, highest_score,count)
 
     except Exception as e:
