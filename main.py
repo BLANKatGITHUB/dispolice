@@ -56,10 +56,28 @@ async def on_message(message):
           sorted_scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
           print(json.dumps(sorted_scores, indent=2))
           
-          # You can now easily check specific thresholds
-          if sorted_scores['TOXICITY'] > 0.8:
-              await message.channel.send(f"{message.author.mention} ⚠️ Warning: Message detected as highly toxic",delete_after=5)
+          # Handle severe violations first
+          if sorted_scores['SEVERE_TOXICITY'] > 0.7 or sorted_scores['THREAT'] > 0.7:
               await message.delete()
+              await message.channel.send(f"{message.author.mention} 🚫 Message removed - Severe violation detected. This incident will be reported.", delete_after=10)
+              return
+
+          # Handle high toxicity scores
+          if sorted_scores['TOXICITY'] > 0.8 or sorted_scores['IDENTITY_ATTACK'] > 0.8:
+              await message.delete()
+              await message.channel.send(f"{message.author.mention} ⚠️ Warning: Message removed due to toxic content", delete_after=5)
+              return
+
+          # Handle moderate violations
+          if sorted_scores['INSULT'] > 0.7 or sorted_scores['PROFANITY'] > 0.8:
+              await message.channel.send(f"{message.author.mention} ⚠️ Please keep the conversation respectful", delete_after=5)
+              return
+
+          # Handle inappropriate content
+          if sorted_scores['SEXUALLY_EXPLICIT'] > 0.8 or sorted_scores['FLIRTATION'] > 0.9:
+              await message.delete()
+              await message.channel.send(f"{message.author.mention} 🚫 Inappropriate content is not allowed", delete_after=5)
+              return
               
       except Exception as e:
           print(f"Error analyzing comment: {e}")
