@@ -58,7 +58,7 @@ async def on_message(message):
           
           # You can now easily check specific thresholds
           if sorted_scores['TOXICITY'] > 0.8:
-              await message.channel.send(f"{message.author} ⚠️ Warning: Message detected as highly toxic",delete_after=5)
+              await message.channel.send(f"{message.author.mention} ⚠️ Warning: Message detected as highly toxic",delete_after=5)
               await message.delete()
               
       except Exception as e:
