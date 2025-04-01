@@ -60,7 +60,22 @@ async def on_message(message):
           highest_offense = max(sorted_scores.items(), key=lambda x: x[1])
           offense_type, score = highest_offense
 
-          if score > 0.7:
+          if score > 0.8:
+              await message.delete()
+              warning_messages = {
+                  'SEVERE_TOXICITY': '🚫 Message removed - Severely toxic content detected. Moderator action required.',
+                  'THREAT': '🚫 Message removed - Threatening content is not allowed. Moderator action required.',
+                  'TOXICITY': '⚠️ Message removed - Toxic content detected. Moderator action required.',
+                  'IDENTITY_ATTACK': '🚫 Message removed - Identity-based attacks are not allowed. Moderator action required.',
+                  'INSULT': '⚠️ Message removed - Insulting content detected. Moderator action required.',
+                  'PROFANITY': '⚠️ Message removed - Excessive profanity detected. Moderator action required.',
+                  'SEXUALLY_EXPLICIT': '🚫 Message removed - Sexually explicit content is not allowed. Moderator action required.'
+              }
+              role = message.guild.get_role(1356674452095635747)
+              warning_text = warning_messages.get(offense_type)
+              await message.channel.send(f"{message.author.mention} {warning_text} {role.mention}", delete_after=10)
+              
+          elif score > 0.7:
               await message.delete()
               warning_messages = {
                   'SEVERE_TOXICITY': '🚫 Message removed - Severely toxic content detected',
@@ -72,9 +87,10 @@ async def on_message(message):
                   'SEXUALLY_EXPLICIT': '🚫 Message removed - Sexually explicit content is not allowed',
                   'FLIRTATION': '⚠️ Message removed - Inappropriate flirtation detected'
               }
-              message = warning_messages.get(offense_type, '⚠️ Message removed - Inappropriate content detected')
-              await message.channel.send(f"{message.author.mention} {message}", delete_after=10)
+              warning_text = warning_messages.get(offense_type)
+              await message.channel.send(f"{message.author.mention} {warning_text}", delete_after=10)
               return
+
               
       except Exception as e:
           print(f"Error analyzing comment: {e}")
