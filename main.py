@@ -1,129 +1,184 @@
-
-import discord 
+import discord
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
-from googleapiclient import discovery
+from googleapiclient import discovery, logging
 import datetime
 import json
 
-load_dotenv()
 
+load_dotenv()
+TOKEN = os.getenv('TOKEN')
+PERSPECTIVE_API_KEY = os.getenv('perspective_api')
+
+MOD_ROLE_ID = 1356674452095635747
+
+if not TOKEN:
+    raise Exception("Please add your Discord bot TOKEN to the .env file.")
+if not PERSPECTIVE_API_KEY:
+    raise Exception("Please add your perspective_api key to the .env file.")
+
+# --- Bot Setup ---
 intents = discord.Intents.default()
 intents.message_content = True
+bot = commands.Bot(command_prefix="$", intents=intents)
 
-bot = commands.Bot(command_prefix="$",intents=intents)
+# --- Perspective API Client ---
+try:
+    client = discovery.build(
+        "commentanalyzer",
+        "v1alpha1",
+        developerKey=PERSPECTIVE_API_KEY,
+        discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",
+        static_discovery=False,
+    )
+except Exception as e:
+    print(f"Error building Perspective API client: {e}")
+    client = None # Ensure client is None if building fails
 
-client = discovery.build(
-  "commentanalyzer",
-  "v1alpha1",
-  developerKey=os.getenv("perspective_api"),
-  discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",
-  static_discovery=False,
-)
+# --- Base Warning Messages ---
+BASE_WARNING_MESSAGES = {
+    'SEVERE_TOXICITY': '🚫 Severely toxic content detected.',
+    'THREAT': '🚫 Threatening content is not allowed.',
+    'TOXICITY': '⚠️ Toxic content detected.',
+    'IDENTITY_ATTACK': '🚫 Identity-based attacks are not allowed.',
+    'INSULT': '⚠️ Insulting content detected.',
+    'PROFANITY': '⚠️ Excessive profanity detected.',
+    'SEXUALLY_EXPLICIT': '🚫 Sexually explicit content is not allowed.',
+    'FLIRTATION': '⚠️ Inappropriate flirtation detected.'
+}
+DEFAULT_WARNING = "⚠️ Inappropriate content detected."
 
+# --- Helper Function for Moderation ---
+async def handle_moderation(message: discord.Message, offense_type: str, score: float):
+
+    if not message.guild:
+        print(f"Cannot moderate message {message.id} (not in a guild).")
+        return
+
+    base_warning = BASE_WARNING_MESSAGES.get(offense_type, DEFAULT_WARNING)
+    full_warning = f"{message.author.mention} {base_warning}"
+    timeout_duration = None
+    ping_role = False
+    reason = f"Content flagged for {offense_type} (Score: {score:.3f})"
+
+    # Determine specific actions based on score threshold
+    if score > 0.9:
+        full_warning += " User temporarily muted for 5 minutes."
+        ping_role = True
+        timeout_duration = datetime.timedelta(minutes=5)
+    elif score > 0.8:
+        full_warning += " Moderator review advised."
+        ping_role = True
+
+    # Fetch and mention role if needed (using hardcoded ID)
+    moderator_role = None
+    if ping_role:
+        try:
+            # Using the hardcoded ID here
+            moderator_role = message.guild.get_role(MOD_ROLE_ID)
+            if moderator_role:
+                full_warning += f" {moderator_role.mention}"
+            else:
+                # Warn if the hardcoded role ID isn't found in this specific server
+                print(f"Warning: Could not find role with hardcoded ID {MOD_ROLE_ID} in guild {message.guild.name}")
+        except Exception as e:
+             print(f"Error fetching role {MOD_ROLE_ID} in guild {message.guild.name}: {e}")
+
+    # Perform actions
+    try:
+        await message.channel.send(full_warning, delete_after=15)
+        await message.delete()
+        print(f"Deleted message {message.id} by {message.author} for {offense_type} ({score:.3f})")
+
+        if timeout_duration:
+            try:
+                await message.author.timeout(timeout_duration, reason=reason)
+                print(f"Timed out {message.author} for {timeout_duration} due to: {reason}")
+            except discord.Forbidden:
+                print(f"Error: Missing 'Moderate Members' permission to time out {message.author}.")
+            except discord.HTTPException as e:
+                 print(f"Error timing out {message.author}: {e}")
+
+    except discord.Forbidden:
+        print(f"Error: Missing permissions in channel {message.channel.name} (Guild: {message.guild.name}). Need 'Send Messages' and 'Manage Messages'.")
+    except discord.NotFound:
+        print(f"Warning: Message {message.id} was likely already deleted.")
+    except Exception as e:
+        print(f"An unexpected error occurred during moderation for message {message.id}: {e}")
+
+    # logging
+    logging:None|bool = True
+    if logging:    
+        logging_channel_id:None|discord.TextChannel = 1356741431250653355
+        try:
+            logging_channel = message.guild.get_channel(logging_channel_id)
+            if logging_channel: 
+                logging_channel.send(f"Message {message.id} by {message.author} was flagged for {offense_type} (Score: {score:.3f})")
+        except error:
+            
+
+
+
+# --- Bot Events ---
 @bot.event
 async def on_ready():
     print(f'We have logged in as {bot.user}')
+    if not client:
+        print("Perspective API client failed to initialize. Moderation features will be disabled.")
+    # No need to check for MOD_ROLE_ID here anymore
+
 
 @bot.command()
 async def hello(ctx):
     await ctx.send('Hello!')
 
 @bot.event
-async def on_message(message):
-
-    if message.author == bot.user:
+async def on_message(message: discord.Message):
+    if message.author == bot.user or message.author.bot or not message.guild:
         return
 
-    if message.content.startswith('$'):
+    if message.content.startswith(bot.command_prefix):
         await bot.process_commands(message)
         return
-    
 
-    analyze = {
+    if not client: # Skip analysis if Perspective API client isn't available
+        return
+
+    analyze_request = {
         'comment': {'text': message.content},
-        'requestedAttributes': {
-          'TOXICITY': {},
-          'SEVERE_TOXICITY': {},
-          'IDENTITY_ATTACK': {},
-          'INSULT': {},
-          'PROFANITY': {},
-          'THREAT': {},
-          'SEXUALLY_EXPLICIT': {},
-          'FLIRTATION': {},
-        },
+        'requestedAttributes': {attr: {} for attr in BASE_WARNING_MESSAGES.keys()},
         'languages': ['en']
     }
+
     try:
-        response = client.comments().analyze(body=analyze).execute()
+        response = client.comments().analyze(body=analyze_request).execute()
         scores = {
             attr: round(response['attributeScores'][attr]['summaryScore']['value'], 3)
-            for attr in analyze['requestedAttributes']
+            for attr in analyze_request['requestedAttributes']
+            if attr in response.get('attributeScores', {})
         }
-        
-        sorted_scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
-        print(json.dumps(sorted_scores, indent=2))
-        
-        highest_offense = max(sorted_scores.items(), key=lambda x: x[1])
-        offense_type, score = highest_offense
-        if score > 0.9:
-            await message.delete()
-            await message.author.timeout(duration=datetime.timedelta(minutes=5), reason="Inappropriate content detected")
-            warning_messages = {
-                'SEVERE_TOXICITY': '🚫 Message removed - Severely toxic content detected. User temporarily muted for 1 hour.',
-                'THREAT': '🚫 Message removed - Threatening content is not allowed. User temporarily muted for 1 hour.',
-                'TOXICITY': '⚠️ Message removed - Toxic content detected. User temporarily muted for 1 hour.',
-                'IDENTITY_ATTACK': '🚫 Message removed - Identity-based attacks are not allowed. User temporarily muted for 1 hour.',
-                'INSULT': '⚠️ Message removed - Insulting content detected. User temporarily muted for 1 hour.',
-                'PROFANITY': '⚠️ Message removed - Excessive profanity detected. User temporarily muted for 1 hour.',
-                'SEXUALLY_EXPLICIT': '🚫 Message removed - Sexually explicit content is not allowed. User temporarily muted for 1 hour.'
-            }
-            role = message.guild.get_role(1356674452095635747)
-            warning_text = warning_messages.get(offense_type)
-            await message.channel.send(f"{message.author.mention} {warning_text} {role.mention}", delete_after=10)
-        if score > 0.8:
-            await message.delete()
-            warning_messages = {
-                'SEVERE_TOXICITY': '🚫 Message removed - Severely toxic content detected. Moderator action required.',
-                'THREAT': '🚫 Message removed - Threatening content is not allowed. Moderator action required.',
-                'TOXICITY': '⚠️ Message removed - Toxic content detected. Moderator action required.',
-                'IDENTITY_ATTACK': '🚫 Message removed - Identity-based attacks are not allowed. Moderator action required.',
-                'INSULT': '⚠️ Message removed - Insulting content detected. Moderator action required.',
-                'PROFANITY': '⚠️ Message removed - Excessive profanity detected. Moderator action required.',
-                'SEXUALLY_EXPLICIT': '🚫 Message removed - Sexually explicit content is not allowed. Moderator action required.'
-            }
-            role = message.guild.get_role(1356674452095635747)
-            warning_text = warning_messages.get(offense_type)
-            await message.channel.send(f"{message.author.mention} {warning_text} {role.mention}", delete_after=10)
-            
-        elif score > 0.7:
-            await message.delete()
-            warning_messages = {
-                'SEVERE_TOXICITY': '🚫 Message removed - Severely toxic content detected',
-                'THREAT': '🚫 Message removed - Threatening content is not allowed',
-                'TOXICITY': '⚠️ Message removed - Toxic content detected',
-                'IDENTITY_ATTACK': '🚫 Message removed - Identity-based attacks are not allowed',
-                'INSULT': '⚠️ Message removed - Insulting content detected',
-                'PROFANITY': '⚠️ Message removed - Excessive profanity detected',
-                'SEXUALLY_EXPLICIT': '🚫 Message removed - Sexually explicit content is not allowed',
-                'FLIRTATION': '⚠️ Message removed - Inappropriate flirtation detected'
-            }
-            warning_text = warning_messages.get(offense_type)
-            await message.channel.send(f"{message.author.mention} {warning_text}", delete_after=10)
-            return
-            
-    except Exception as e:
-        print(f"Error analyzing comment: {e}")
-        await message.channel.send("couldn't analyze that message.")
-    
 
+        if not scores:
+            return
+
+        print(f"Scores for message '{message.content[:50]}...' by {message.author}: {json.dumps(scores)}")
+
+        highest_offense_type, highest_score = max(scores.items(), key=lambda item: item[1])
+
+        if highest_score > 0.7:
+            # Call helper function (no longer passing role ID)
+            await handle_moderation(message, highest_offense_type, highest_score)
+
+    except Exception as e:
+        print(f"Error analyzing comment (ID: {message.id}): {e}")
+
+
+# --- Run Bot ---
 try:
-    TOKEN = os.getenv('TOKEN') or ""
-    if TOKEN == "":
-        raise Exception("Please add your token to the Secrets pane.")
+    print("Attempting to run bot...")
     bot.run(TOKEN)
 except discord.HTTPException as e:
-    if e.status == 429:
-        print("The Discord servers denied the connection for making too many requests")
-        print("Get help from https://stackoverflow.com/questions/66724687/in-discord-py-how-to-solve-the-error-for-toomanyrequests")
+    print(f"HTTPException: {e}")
+except Exception as e:
+    print(f"Error running bot: {e}")
