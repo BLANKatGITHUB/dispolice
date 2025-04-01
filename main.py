@@ -96,6 +96,8 @@ async def on_message(message):
     except Exception as e:
         print(f"Error analyzing comment: {e}")
         await message.channel.send("couldn't analyze that message.")
+    
+    await bot.process_commands(message)
 
 try:
     TOKEN = os.getenv('TOKEN') or ""
