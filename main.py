@@ -58,11 +58,12 @@ async def on_message(message):
           
           # You can now easily check specific thresholds
           if sorted_scores['TOXICITY'] > 0.8:
-              await message.channel.send("⚠️ Warning: Message detected as highly toxic")
+              await message.channel.send(f"{message.author} ⚠️ Warning: Message detected as highly toxic",delete_after=5)
+              await message.delete()
               
       except Exception as e:
           print(f"Error analyzing comment: {e}")
-          await message.channel.send("Sorry, I couldn't analyze that message.")
+          await message.channel.send("couldn't analyze that message.")
 
 try:
   TOKEN = os.getenv('TOKEN') or ""
