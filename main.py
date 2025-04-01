@@ -69,7 +69,7 @@ async def on_message(message):
         offense_type, score = highest_offense
         if score > 0.9:
             await message.delete()
-            await message.author.timeout(until=datetime.timedelta(minutes=5), reason="Inappropriate content detected")
+            await message.author.timeout(duration=datetime.timedelta(minutes=5), reason="Inappropriate content detected")
             warning_messages = {
                 'SEVERE_TOXICITY': '🚫 Message removed - Severely toxic content detected. User temporarily muted for 1 hour.',
                 'THREAT': '🚫 Message removed - Threatening content is not allowed. User temporarily muted for 1 hour.',
