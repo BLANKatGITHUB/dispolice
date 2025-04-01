@@ -4,6 +4,7 @@ from discord.ext import commands
 import os
 from dotenv import load_dotenv
 from googleapiclient import discovery
+import datetime
 import json
 
 load_dotenv()
@@ -31,9 +32,14 @@ async def hello(ctx):
 
 @bot.event
 async def on_message(message):
-    
+
     if message.author == bot.user:
         return
+
+    if message.content.startswith('$'):
+        await bot.process_commands(message)
+        return
+    
 
     analyze = {
         'comment': {'text': message.content},
@@ -61,7 +67,21 @@ async def on_message(message):
         
         highest_offense = max(sorted_scores.items(), key=lambda x: x[1])
         offense_type, score = highest_offense
-
+        if score > 0.9:
+            await message.delete()
+            await message.author.timeout(until=datetime.timedelta(minutes=5), reason="Inappropriate content detected")
+            warning_messages = {
+                'SEVERE_TOXICITY': '🚫 Message removed - Severely toxic content detected. User temporarily muted for 1 hour.',
+                'THREAT': '🚫 Message removed - Threatening content is not allowed. User temporarily muted for 1 hour.',
+                'TOXICITY': '⚠️ Message removed - Toxic content detected. User temporarily muted for 1 hour.',
+                'IDENTITY_ATTACK': '🚫 Message removed - Identity-based attacks are not allowed. User temporarily muted for 1 hour.',
+                'INSULT': '⚠️ Message removed - Insulting content detected. User temporarily muted for 1 hour.',
+                'PROFANITY': '⚠️ Message removed - Excessive profanity detected. User temporarily muted for 1 hour.',
+                'SEXUALLY_EXPLICIT': '🚫 Message removed - Sexually explicit content is not allowed. User temporarily muted for 1 hour.'
+            }
+            role = message.guild.get_role(1356674452095635747)
+            warning_text = warning_messages.get(offense_type)
+            await message.channel.send(f"{message.author.mention} {warning_text} {role.mention}", delete_after=10)
         if score > 0.8:
             await message.delete()
             warning_messages = {
@@ -97,7 +117,6 @@ async def on_message(message):
         print(f"Error analyzing comment: {e}")
         await message.channel.send("couldn't analyze that message.")
     
-    await bot.process_commands(message)
 
 try:
     TOKEN = os.getenv('TOKEN') or ""
