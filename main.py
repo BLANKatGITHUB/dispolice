@@ -1,6 +1,6 @@
 
 import discord 
-from discord import app_commands
+from discord.ext import commands
 import os
 from dotenv import load_dotenv
 from googleapiclient import discovery
@@ -11,7 +11,7 @@ load_dotenv()
 intents = discord.Intents.default()
 intents.message_content = True
 
-bot = discord.Bot(intents=intents)
+bot = commands.Bot(command_prefix="$",intents=intents)
 
 client = discovery.build(
   "commentanalyzer",
@@ -27,10 +27,11 @@ async def on_ready():
 
 @bot.command()
 async def hello(ctx):
-    await ctx.respond('Hello!')
+    await ctx.send('Hello!')
 
 @bot.event
 async def on_message(message):
+    
     if message.author == bot.user:
         return
 
