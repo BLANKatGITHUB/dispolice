@@ -47,11 +47,22 @@ async def on_message(message):
       }
       try:
           response = client.comments().analyze(body=analyze).execute()
-          print(json.dumps(response, indent=2))
+          scores = {
+              attr: round(response['attributeScores'][attr]['summaryScore']['value'], 3)
+              for attr in analyze['requestedAttributes']
+          }
+          
+          # Sort scores by value to easily see highest risks
+          sorted_scores = dict(sorted(scores.items(), key=lambda x: x[1], reverse=True))
+          print(json.dumps(sorted_scores, indent=2))
+          
+          # You can now easily check specific thresholds
+          if sorted_scores['TOXICITY'] > 0.8:
+              await message.channel.send("⚠️ Warning: Message detected as highly toxic")
+              
       except Exception as e:
           print(f"Error analyzing comment: {e}")
-          await message.channel.send("Sorry, I couldn't analyze that message.")  
-      print(json.dumps(response, indent=2))
+          await message.channel.send("Sorry, I couldn't analyze that message.")
 
 try:
   TOKEN = os.getenv('TOKEN') or ""
