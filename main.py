@@ -50,7 +50,7 @@ BASE_WARNING_MESSAGES = {
 DEFAULT_WARNING = "⚠️ Inappropriate content detected."
 
 # --- Helper Function for Moderation ---
-async def handle_moderation(message: discord.Message, offense_type: str, score: float):
+async def handle_moderation(message: discord.Message, offense_type: str, score: float, count: int):
 
     if not message.guild:
         print(f"Cannot moderate message {message.id} (not in a guild).")
@@ -63,11 +63,11 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
     reason = f"Content flagged for {offense_type} (Score: {score:.3f})"
 
     # Determine specific actions based on score threshold
-    if score > 0.9:
+    if score > 0.9 and count >= 2:
         full_warning += " User temporarily muted for 5 minutes."
         ping_role = True
         timeout_duration = datetime.timedelta(minutes=5)
-    elif score > 0.8:
+    elif score > 0.8 and count>=2:
         full_warning += " Moderator review advised."
         ping_role = True
 
@@ -113,11 +113,20 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
         logging_channel_id:None|discord.TextChannel = 1356741431250653355
         try:
             logging_channel = message.guild.get_channel(logging_channel_id)
-            if logging_channel: 
-                logging_channel.send(f"Message {message.id} by {message.author} was flagged for {offense_type} (Score: {score:.3f})")
-        except error:
-            
-
+            if logging_channel:
+                embed = discord.Embed(title="Message Moderated", color=0xff0000)
+                embed.add_field(name="Author", value=message.author.mention, inline=False)
+                embed.add_field(name="Channel", value=message.channel.mention, inline=False)
+                embed.add_field(name="Message", value=message.content, inline=False)
+                embed.add_field(name="Offense Type", value=offense_type, inline=False)
+                embed.add_field(name="Score", value=f"{score:.3f}", inline=False)
+                if timeout_duration:
+                    embed.add_field(name="Timeout Duration", value=timeout_duration, inline=False)
+                await logging_channel.send(embed=embed)
+        except discord.Forbidden :
+            print(f"Error: Missing permissions in channel {logging_channel_id} (Guild: {message.guild})" )
+        except Exception as e:
+            print(f"An unexpected error occurred during logging for message {message.id}: {e}")
 
 
 # --- Bot Events ---
@@ -165,10 +174,11 @@ async def on_message(message: discord.Message):
         print(f"Scores for message '{message.content[:50]}...' by {message.author}: {json.dumps(scores)}")
 
         highest_offense_type, highest_score = max(scores.items(), key=lambda item: item[1])
+        count = sum(1 for score in scores.values() if score > 0.8)
 
         if highest_score > 0.7:
             # Call helper function (no longer passing role ID)
-            await handle_moderation(message, highest_offense_type, highest_score)
+            await handle_moderation(message, highest_offense_type, highest_score,count)
 
     except Exception as e:
         print(f"Error analyzing comment (ID: {message.id}): {e}")
