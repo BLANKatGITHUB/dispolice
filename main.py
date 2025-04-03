@@ -5,6 +5,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 from googleapiclient import discovery
 from moderation import handle_moderation
+from replit import db
 
 # Load environment variables
 load_dotenv()
@@ -46,6 +47,28 @@ async def on_ready():
 async def hello(ctx):
     await ctx.send('Hello!')
 
+@bot.command()
+async def set_mod_role(ctx,role: discord.Role):
+    try:
+        guild_data = db.get(str(ctx.guild.id),{})
+        guild_data['mod_role_id'] = role.id
+        db[str(ctx.guild.id)] = guild_data
+        await ctx.send(f"Moderator role set to {role.mention}")
+    except Exception as e:
+        print("Error setting moderator role:", e)
+        await ctx.send("An error occurred while setting the moderator role.")    
+
+@bot.command()
+async def set_logging_channel(ctx,channel: discord.TextChannel):
+    try:
+        guild_data = db.get(str(ctx.guild.id),{})
+        guild_data['logging_channel_id'] = channel.id
+        db[str(ctx.guild.id)] = guild_data
+        await ctx.send(f"Logging channel set to {channel.mention}")
+    except Exception as e:
+        print("Error setting logging channel:", e)
+        await ctx.send("An error occurred while setting the logging channel.")
+
 @bot.event
 async def on_message(message: discord.Message):
     if message.author == bot.user or message.author.bot or not message.guild:
@@ -86,6 +109,7 @@ async def on_message(message: discord.Message):
 
     except Exception as e:
         print(f"Error analyzing comment (ID: {message.id}): {e}")
+
 
 # --- Run Bot ---
 try:
