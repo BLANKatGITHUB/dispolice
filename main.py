@@ -48,7 +48,10 @@ async def hello(ctx):
     await ctx.send('Hello!')
 
 @bot.command()
-async def set_mod_role(ctx,role: discord.Role):
+async def set_mod_role(ctx,role: discord.Role|str = ""):
+    if role == "" or type(role) is not discord.Role:
+        await ctx.send("Please mention a role or provide a role ID.")
+        return
     try:
         guild_data = db.get(str(ctx.guild.id),{})
         guild_data['mod_role_id'] = role.id
@@ -60,7 +63,10 @@ async def set_mod_role(ctx,role: discord.Role):
 
 
 @bot.command()
-async def set_logging_channel(ctx,channel: discord.TextChannel):
+async def set_logging_channel(ctx,channel: discord.TextChannel|str = ""):
+    if channel == "" or type(channel) is not discord.TextChannel:
+        await ctx.send("Please mention a channel or provide a channel ID.")
+        return
     try:
         guild_data = db.get(str(ctx.guild.id),{})
         guild_data['logging_channel_id'] = channel.id
@@ -79,7 +85,7 @@ async def on_message(message: discord.Message):
         await bot.process_commands(message)
         return
 
-    if not client:  # Skip analysis if Perspective API client isn't available
+    if not client:  
         return
 
     analyze_request = {
