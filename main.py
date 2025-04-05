@@ -56,7 +56,8 @@ async def set_mod_role(ctx,role: discord.Role):
         await ctx.send(f"Moderator role set to {role.mention}")
     except Exception as e:
         print("Error setting moderator role:", e)
-        await ctx.send("An error occurred while setting the moderator role.")    
+        await ctx.send("An error occurred while setting the moderator role.")
+
 
 @bot.command()
 async def set_logging_channel(ctx,channel: discord.TextChannel):
