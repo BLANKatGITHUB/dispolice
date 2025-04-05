@@ -1,6 +1,8 @@
+from logging import raiseExceptions
 import discord
 import datetime
 from logging_utils import log_moderation_event
+from replit import db
 
 # Base warning messages for various offense types
 BASE_WARNING_MESSAGES = {
@@ -15,8 +17,6 @@ BASE_WARNING_MESSAGES = {
 }
 DEFAULT_WARNING = "⚠️ Inappropriate content detected."
 
-# Hardcoded moderator role ID for pings (change as needed)
-MOD_ROLE_ID = 1356674452095635747
 
 async def handle_moderation(message: discord.Message, offense_type: str, score: float, count: int):
     if not message.guild:
@@ -45,20 +45,23 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
     # Fetch and mention moderator role if needed
     if ping_role:
         try:
-            moderator_role = message.guild.get_role(MOD_ROLE_ID)
+            mod_role_id = db.get(str(message.guild.id), {}).get('mod_role_id', None)
+            if not mod_role_id:
+                print(f"Warning: No moderator role set for guild {message.guild.name}")
+            moderator_role = message.guild.get_role(mod_role_id)
             if moderator_role:
                 full_warning += f" {moderator_role.mention}"
             else:
-                print(f"Warning: Could not find role with hardcoded ID {MOD_ROLE_ID} in guild {message.guild.name}")
+                print(f"Warning: Could not find role with ID {mod_role_id} in guild {message.guild.name}")
         except Exception as e:
-            print(f"Error fetching role {MOD_ROLE_ID} in guild {message.guild.name}: {e}")
+            print(f"Error fetching role {mod_role_id} in guild {message.guild.name}: {e}")
 
     # Send warning, delete message, and apply timeout if necessary
     try:
-        await message.channel.send(full_warning)
+        await message.channel.send(full_warning,delete_after=10)
         await message.delete()
         print(f"Deleted message {message.id} by {message.author} for {offense_type} ({score:.3f})")
-
+        
         if timeout_duration:
             try:
                 await message.author.timeout(timeout_duration, reason=reason)
@@ -67,7 +70,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
                 print(f"Error: Missing 'Moderate Members' permission to time out {message.author}.")
             except discord.HTTPException as e:
                 print(f"Error timing out {message.author}: {e}")
-
+        
     except discord.Forbidden:
         print(f"Error: Missing permissions in channel {message.channel.name} (Guild: {message.guild.name}). Need 'Send Messages' and 'Manage Messages'.")
     except discord.NotFound:
@@ -77,4 +80,6 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
 
     # Log moderation event if conditions met
     if score > 0.8 and count > 2:
-        await log_moderation_event(message, offense_type, score, timeout_duration)
+        logging_channel_id = db.get(str(message.guild.id), {}).get('logging_channel_id', None)
+        if logging_channel_id:
+            await log_moderation_event(message, offense_type, score,logging_channel_id, timeout_duration)

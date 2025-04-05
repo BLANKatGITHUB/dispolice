@@ -1,11 +1,10 @@
 import discord
 import datetime
-# Hardcoded logging channel ID (change as needed)
-LOGGING_CHANNEL_ID = 1356741431250653355
 
-async def log_moderation_event(message: discord.Message, offense_type: str, score: float, timeout_duration: datetime.timedelta|None = None):
+
+async def log_moderation_event(message: discord.Message, offense_type: str, score: float,logging_channel_id: int, timeout_duration: datetime.timedelta|None = None):
     try:
-        logging_channel = message.guild.get_channel(LOGGING_CHANNEL_ID)
+        logging_channel = message.guild.get_channel(logging_channel_id)
         if logging_channel:
             embed = discord.Embed(title="Message Moderated", color=0xff0000)
             embed.add_field(name="Author", value=message.author.mention, inline=False)
