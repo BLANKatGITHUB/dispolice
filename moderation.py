@@ -18,7 +18,7 @@ BASE_WARNING_MESSAGES = {
 DEFAULT_WARNING = "⚠️ Inappropriate content detected."
 
 
-async def handle_moderation(message: discord.Message, offense_type: str, score: float, count: int):
+async def handle_moderation(message: discord.Message, offense_type: str, score: float, overall_score: int):
     if not message.guild:
         print(f"Cannot moderate message {message.id} (not in a guild).")
         return
@@ -30,15 +30,15 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
     reason = f"Content flagged for {offense_type} (Score: {score:.3f})"
 
     # Determine specific actions based on score threshold
-    if score > 0.9 and count > 2:
+    if overall_score >= 2.5:
         full_warning += " User temporarily muted for 5 minutes."
         ping_role = True
         timeout_duration = datetime.timedelta(minutes=5)
-    elif score > 0.8 and count > 2:
+    elif overall_score > 2.0:
         full_warning += " Moderator review advised."
         ping_role = True
 
-    elif score > 0.7 and count > 2:
+    else:
         await message.channel.send(full_warning,delete_after=10)
 
 
@@ -79,7 +79,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
         print(f"An unexpected error occurred during moderation for message {message.id}: {e}")
 
     # Log moderation event if conditions met
-    if score > 0.8 and count > 2:
+    if overall_score > 2.0:
         logging_channel_id = db.get(str(message.guild.id), {}).get('logging_channel_id', None)
         if logging_channel_id:
             await log_moderation_event(message, offense_type, score,logging_channel_id, timeout_duration)

@@ -76,6 +76,19 @@ async def set_logging_channel(ctx,channel: discord.TextChannel|str = ""):
         print("Error setting logging channel:", e)
         await ctx.send("An error occurred while setting the logging channel.")
 
+@bot.command()
+async def clear(ctx,num:int = 0):
+    if num == 0:
+        await ctx.send("Please provide a number of messages to delete.")
+        return
+    try:
+        await ctx.channel.purge(limit=num+1)
+        await ctx.send(f"{num} messages deleted.",delete_after=5)
+    except Exception as e:
+        print("Error clearing messages:", e)
+
+    
+
 @bot.event
 async def on_message(message: discord.Message):
     if message.author == bot.user or message.author.bot or not message.guild:
@@ -91,7 +104,7 @@ async def on_message(message: discord.Message):
     analyze_request = {
         'comment': {'text': message.content},
         'requestedAttributes': {
-            attr: {} for attr in ['SEVERE_TOXICITY', 'THREAT', 'TOXICITY', 'IDENTITY_ATTACK', 'INSULT', 'PROFANITY', 'SEXUALLY_EXPLICIT', 'FLIRTATION']
+            attr: {} for attr in ['SEVERE_TOXICITY', 'THREAT', 'TOXICITY', 'IDENTITY_ATTACK','SEXUALLY_EXPLICIT']
         },
         'languages': ['en']
     }
@@ -110,9 +123,12 @@ async def on_message(message: discord.Message):
         print(f"Scores for message '{message.content[:50]}...' by {message.author}: {json.dumps(scores)}")
         highest_offense_type, highest_score = max(scores.items(), key=lambda item: item[1])
 
-        if highest_score > 0.8:
-            count = sum(1 for score in scores.values() if score > 0.8)
-            await handle_moderation(message, highest_offense_type, highest_score, count)
+        overall_score = sum(scores.values())
+        print(overall_score)
+
+        if overall_score >= 1.5 :
+            await handle_moderation(message,highest_offense_type,highest_score,overall_score)
+            return
 
     except Exception as e:
         print(f"Error analyzing comment (ID: {message.id}): {e}")
