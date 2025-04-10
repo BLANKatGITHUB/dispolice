@@ -2,3 +2,5 @@ discord
 dotenv
 google-api-python-client
 replit
+discord-py
+python-dotenv

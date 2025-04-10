@@ -4,8 +4,10 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from googleapiclient import discovery
-from moderation import handle_moderation
+from moderation import handle_moderation,get_thresholds
 from replit import db
+
+valid_filters = ['TOXICITY', 'SEVERE_TOXICITY', 'THREAT', 'IDENTITY_ATTACK', 'INSULT', 'PROFANITY', 'SEXUALLY_EXPLICIT', 'FLIRTATION']
 
 # Load environment variables
 load_dotenv()
@@ -87,6 +89,43 @@ async def clear(ctx,num:int = 0):
     except Exception as e:
         print("Error clearing messages:", e)
 
+@bot.command()
+async def set_filters(ctx, *filters):
+    if not filters:
+        await ctx.send("Please provide a list of filters to set.")
+        current_filters = db.get(str(ctx.guild.id), {}).get('filters', ['TOXICITY', 'SEVERE_TOXICITY', 'THREAT', 'IDENTITY_ATTACK', 'SEXUALLY_EXPLICIT'])
+        await ctx.send(f"Current filters: {', '.join(current_filters)}")
+        return
+
+    # Check if all filters are valid
+    for filter in filters:
+        if filter not in valid_filters:
+            await ctx.send(f"Invalid filter: {filter}. Please use one of the following: {', '.join(valid_filters)}")
+            return
+
+    try:
+        guild_data = db.get(str(ctx.guild.id),{})
+        guild_data['filters'] = filters
+        db[str(ctx.guild.id)] = guild_data
+        await ctx.send(f"Filters set to {', '.join(filters)}")
+    except Exception as e:
+        print("Error setting filters:", e)
+        await ctx.send("An error occurred while setting the filters.")
+
+@bot.command()
+async def list_all_filters(ctx):
+    await ctx.send(f"All available filters: {', '.join(valid_filters)}")
+
+@bot.command()
+async def clear_db(ctx,text:str = ""):
+    if text == "":
+        await ctx.send("Please provide confirmation text \"Clear Database\".")
+    elif text=="Clear Database":
+        db.clear()
+        await ctx.send("Database cleared.")   
+    else:
+        await ctx.send("Incorrect confirmation text. correct text is \"Clear Database\".")
+
     
 
 @bot.event
@@ -100,11 +139,17 @@ async def on_message(message: discord.Message):
 
     if not client:  
         return
+    # applies filters to message
+    filters = db.get(str(message.guild.id), {}).get('filters', ['TOXICITY', 'SEVERE_TOXICITY', 'THREAT', 'IDENTITY_ATTACK', 'SEXUALLY_EXPLICIT'])
+
+    # list to store threshold scores for filters
+    filter_scores = get_thresholds(len(filters))
+
 
     analyze_request = {
         'comment': {'text': message.content},
         'requestedAttributes': {
-            attr: {} for attr in ['SEVERE_TOXICITY', 'THREAT', 'TOXICITY', 'IDENTITY_ATTACK','SEXUALLY_EXPLICIT']
+            attr: {} for attr in filters
         },
         'languages': ['en']
     }
@@ -126,8 +171,8 @@ async def on_message(message: discord.Message):
         overall_score = sum(scores.values())
         print(overall_score)
 
-        if overall_score >= 1.5 :
-            await handle_moderation(message,highest_offense_type,highest_score,overall_score)
+        if overall_score >= filter_scores[0] :
+            await handle_moderation(message,highest_offense_type,highest_score,overall_score,filter_scores)
             return
 
     except Exception as e:

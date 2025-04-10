@@ -18,7 +18,7 @@ BASE_WARNING_MESSAGES = {
 DEFAULT_WARNING = "⚠️ Inappropriate content detected."
 
 
-async def handle_moderation(message: discord.Message, offense_type: str, score: float, overall_score: int):
+async def handle_moderation(message: discord.Message, offense_type: str, score: float, overall_score: int,filter_scores:list[float]):
     if not message.guild:
         print(f"Cannot moderate message {message.id} (not in a guild).")
         return
@@ -30,11 +30,11 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
     reason = f"Content flagged for {offense_type} (Score: {score:.3f})"
 
     # Determine specific actions based on score threshold
-    if overall_score >= 2.5:
+    if overall_score >= filter_scores[2]:
         full_warning += " User temporarily muted for 5 minutes."
         ping_role = True
         timeout_duration = datetime.timedelta(minutes=5)
-    elif overall_score > 2.0:
+    elif overall_score > filter_scores[1]:
         full_warning += " Moderator review advised."
         ping_role = True
 
@@ -83,3 +83,11 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
         logging_channel_id = db.get(str(message.guild.id), {}).get('logging_channel_id', None)
         if logging_channel_id:
             await log_moderation_event(message, offense_type, score,logging_channel_id, timeout_duration)
+
+# function to give list of thresholds
+def get_thresholds(n):
+    filter_scores = [0.0] * 3
+    filter_scores[0] = n * 0.3
+    filter_scores[1] = n * 0.4
+    filter_scores[2] = n * 0.5
+    return filter_scores
