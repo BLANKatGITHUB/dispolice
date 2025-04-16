@@ -4,7 +4,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 from googleapiclient import discovery
-from moderation import handle_moderation,get_thresholds
+from moderation import handle_moderation,get_thresholds,has_moderator_perms
 from replit import db
 
 valid_filters = ['TOXICITY', 'SEVERE_TOXICITY', 'THREAT', 'IDENTITY_ATTACK', 'INSULT', 'PROFANITY', 'SEXUALLY_EXPLICIT', 'FLIRTATION']
@@ -126,6 +126,14 @@ async def clear_db(ctx,text:str = ""):
     else:
         await ctx.send("Incorrect confirmation text. correct text is \"Clear Database\".")
 
+@bot.command()
+async def list_user_offenses(ctx, user: discord.Member):
+    if has_moderator_perms(ctx.author):
+        offenses = db.get(str(ctx.guild.id), {}).get(str(user.id), {})
+        offense_arr = offenses.get('offense_arr', [])
+        offense_count = offenses.get('offense_count', 0)
+        await ctx.send(f"User {user.mention} has {offense_count} offenses: {', '.join(offense_arr)}")
+
     
 
 @bot.event
@@ -177,6 +185,7 @@ async def on_message(message: discord.Message):
 
     except Exception as e:
         print(f"Error analyzing comment (ID: {message.id}): {e}")
+
 
 
 # --- Run Bot ---

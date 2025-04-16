@@ -1,7 +1,7 @@
 from logging import raiseExceptions
 import discord
 import datetime
-from logging_utils import log_moderation_event
+from logging_utils import log_moderation_event,offense_count_log
 from replit import db
 
 # Base warning messages for various offense types
@@ -40,6 +40,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
 
     else:
         await message.channel.send(full_warning,delete_after=10)
+
 
 
     # Fetch and mention moderator role if needed
@@ -83,6 +84,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
         logging_channel_id = db.get(str(message.guild.id), {}).get('logging_channel_id', None)
         if logging_channel_id:
             await log_moderation_event(message, offense_type, score,logging_channel_id, timeout_duration)
+            await offense_count_log(message,offense_type,logging_channel_id)
 
 # function to give list of thresholds
 def get_thresholds(n):
@@ -91,3 +93,8 @@ def get_thresholds(n):
     filter_scores[1] = n * 0.4
     filter_scores[2] = n * 0.5
     return filter_scores
+
+def has_moderator_perms(user: discord.Member):
+    if user.guild_permissions.manage_messages:
+        return True
+    return False
