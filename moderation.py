@@ -27,6 +27,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
     full_warning = f"{message.author.mention} {base_warning}"
     timeout_duration = None
     ping_role = False
+    delete_after = 5
     reason = f"Content flagged for {offense_type} (Score: {score:.3f})"
 
     # Determine specific actions based on score threshold
@@ -52,6 +53,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
             moderator_role = message.guild.get_role(mod_role_id)
             if moderator_role:
                 full_warning += f" {moderator_role.mention}"
+                delete_after = 0
             else:
                 print(f"Warning: Could not find role with ID {mod_role_id} in guild {message.guild.name}")
         except Exception as e:
@@ -59,7 +61,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
 
     # Send warning, delete message, and apply timeout if necessary
     try:
-        await message.channel.send(full_warning,delete_after=10)
+        await message.channel.send(full_warning,delete_after=delete_after)
         await message.delete()
         print(f"Deleted message {message.id} by {message.author} for {offense_type} ({score:.3f})")
         
@@ -84,7 +86,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
         logging_channel_id = db.get(str(message.guild.id), {}).get('logging_channel_id', None)
         if logging_channel_id:
             await log_moderation_event(message, offense_type, score,logging_channel_id, timeout_duration)
-            await offense_count_log(message,offense_type,logging_channel_id)
+            await offense_count_log(message,offense_type,message.content,logging_channel_id)
 
 # function to give list of thresholds
 def get_thresholds(n):

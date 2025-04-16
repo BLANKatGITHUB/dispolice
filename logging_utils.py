@@ -22,14 +22,14 @@ async def log_moderation_event(message: discord.Message, offense_type: str, scor
         print(f"An unexpected error occurred during logging for message {message.id}: {e}")
 
 # function to count offense
-async def offense_count_log(message:discord.Message,offense_type:str,logging_channel_id:int):
+async def offense_count_log(message:discord.Message,offense_type:str,message_content:str,logging_channel_id:int):
     guild_id = str(message.guild.id)
     author_id = str(message.author.id)
     guild_data = db.get(guild_id, {})
     author_data = guild_data.get(author_id, {})
 
     offense_arr = author_data.get('offense_arr', [])
-    offense_arr.append(offense_type)
+    offense_arr.append(f"offense_type: {offense_type}, message {message_content}")
     author_data['offense_arr'] = offense_arr
 
     offense_count = author_data.get('offense_count', 0) + 1

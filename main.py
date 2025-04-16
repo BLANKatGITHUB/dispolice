@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -18,6 +19,16 @@ if not TOKEN:
     raise Exception("Please add your Discord bot TOKEN to the .env file.")
 if not PERSPECTIVE_API_KEY:
     raise Exception("Please add your perspective_api key to the .env file.")
+
+# --- Command Groups ---
+command_groups = {
+    "Moderation": ["set_mod_role", "set_logging_channel","clear","set_filters","list_user_offenses"],
+    "Normal": ["hello"],
+    "Utility": ["list_all_filters", "clear_db"]
+}
+
+command_groups_list = list(command_groups.keys())
+
 
 # --- Bot Setup ---
 intents = discord.Intents.default()
@@ -77,6 +88,42 @@ async def set_logging_channel(ctx,channel: discord.TextChannel|str = ""):
     except Exception as e:
         print("Error setting logging channel:", e)
         await ctx.send("An error occurred while setting the logging channel.")
+
+@bot.command()
+async def list_commands(ctx):
+    
+    embed = discord.Embed(title="Command Categories", color=discord.Color.blue())
+    for i, group in enumerate(command_groups_list):
+        embed.add_field(name=f"{i+1}. {group}", value="\u200b", inline=False)
+
+    embed.set_footer(text="Select a category by typing its number.")
+    await ctx.send(embed=embed)
+
+    def check(m):
+        return m.author == ctx.author and m.channel == ctx.channel and m.content.isdigit()
+    
+    try:
+        msg = await bot.wait_for('message', timeout=30.0, check=check)
+        selected_index = int(msg.content) - 1
+        
+        if 0 <= selected_index < len(command_groups_list):
+            selected_group = command_groups_list[selected_index]
+            commands_in_group = command_groups[selected_group]
+
+            commands_list_str = "\n".join([f"- {cmd}" for cmd in commands_in_group])
+
+            group_embed = discord.Embed(title=f"Commands in {selected_group}", description=commands_list_str, color=discord.Color.green())
+            await ctx.send(embed=group_embed)
+        else:
+            await ctx.send("Invalid category number selected.")
+    
+    except asyncio.TimeoutError:
+        await ctx.send("You took too long to select a category.")
+    except ValueError:
+        await ctx.send("Invalid input. Please enter a number.")
+    except Exception as e:
+        print("Error in list_commands:",e)
+
 
 @bot.command()
 async def clear(ctx,num:int = 0):
