@@ -23,17 +23,23 @@ async def log_moderation_event(message: discord.Message, offense_type: str, scor
 
 # function to count offense
 async def offense_count_log(message:discord.Message,offense_type:str,logging_channel_id:int):
-    offenses = db.get(str(message.guild.id), {}).get(str(message.author), {})
-    offense_arr = offenses.get('offense_arr', [])
+    guild_id = str(message.guild.id)
+    author_id = str(message.author.id)
+    guild_data = db.get(guild_id, {})
+    author_data = guild_data.get(author_id, {})
+
+    offense_arr = author_data.get('offense_arr', [])
     offense_arr.append(offense_type)
-    offenses['offense_arr'] = offense_arr
-    offense_count = offenses.get('offense_count', 0) + 1
-    offenses['offense_count'] = offense_count
-    db[str(message.guild.id)][str(message.author)] = offenses
-    if offense_count > 3:
-        try:
-            logging_channel = message.guild.get_channel(logging_channel_id)
-            if logging_channel:
-                await logging_channel.send(f"user has comited various offenses {message.author.mention}")
-        except discord.Forbidden:
-            print(f"Error: Missing permissions in channel {logging_channel_id} (Guild: {message.guild})")
+    author_data['offense_arr'] = offense_arr
+
+    offense_count = author_data.get('offense_count', 0) + 1
+    author_data['offense_count'] = offense_count
+    guild_data[author_id] = author_data
+    db[guild_id] = guild_data
+    try:
+      if offense_count > 3:
+        logging_channel = message.guild.get_channel(logging_channel_id)
+        if logging_channel:
+            await logging_channel.send(f"user has comited various offenses {message.author.mention}")
+    except discord.Forbidden:
+        print(f"Error: Missing permissions in channel {logging_channel_id} (Guild: {message.guild})")
