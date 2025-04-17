@@ -41,5 +41,6 @@ async def offense_count_log(message:discord.Message,offense_type:str,message_con
         logging_channel = message.guild.get_channel(logging_channel_id)
         if logging_channel:
             await logging_channel.send(f"user has comited various offenses {message.author.mention}")
+            await message.author.timeout(datetime.timedelta(minutes=(db["timeout_duration"] if db["timeout_duration"] else 5)*offense_count),reason=f"{offense_count} offenses")
     except discord.Forbidden:
         print(f"Error: Missing permissions in channel {logging_channel_id} (Guild: {message.guild})")

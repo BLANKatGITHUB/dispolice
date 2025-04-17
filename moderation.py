@@ -34,7 +34,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
     if overall_score >= filter_scores[2]:
         full_warning += " User temporarily muted for 5 minutes."
         ping_role = True
-        timeout_duration = datetime.timedelta(minutes=5)
+        timeout_duration = datetime.timedelta(minutes= db["timeout_duration"] if db["timeout_duration"] else 5)
     elif overall_score > filter_scores[1]:
         full_warning += " Moderator review advised."
         ping_role = True

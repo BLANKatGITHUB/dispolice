@@ -22,7 +22,7 @@ if not PERSPECTIVE_API_KEY:
 
 # --- Command Groups ---
 command_groups = {
-    "Moderation": ["set_mod_role", "set_logging_channel","clear","set_filters","list_user_offenses"],
+    "Moderation": ["set_mod_role", "set_logging_channel","clear","set_filters","list_user_offenses","set_default_timeout"],
     "Normal": ["hello"],
     "Utility": ["list_all_filters", "clear_db"]
 }
@@ -162,6 +162,19 @@ async def set_filters(ctx, *filters):
 @bot.command()
 async def list_all_filters(ctx):
     await ctx.send(f"All available filters: {', '.join(valid_filters)}")
+
+@bot.command()
+async def set_default_timeout(ctx,time:int = 0):
+    if time == 0:
+        await ctx.send("Please provide a timeout duration in minutes.")
+        return
+    try:
+        guild_data = db.get(str(ctx.guild.id),{})
+        guild_data['timeout_duration'] = time
+        db[str(ctx.guild.id)] = guild_data
+        await ctx.send(f"Default timeout duration set to {time} minutes.")
+    except Exception as e:
+        print("Error setting default timeout duration:", e)
 
 @bot.command()
 async def clear_db(ctx,text:str = ""):
