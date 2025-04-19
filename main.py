@@ -207,6 +207,7 @@ async def on_message(message: discord.Message):
 
     if not client:  
         return
+
     # applies filters to message
     filters = db.get(str(message.guild.id), {}).get('filters', ['TOXICITY', 'SEVERE_TOXICITY', 'THREAT', 'IDENTITY_ATTACK', 'SEXUALLY_EXPLICIT'])
 

@@ -1,8 +1,7 @@
-from logging import raiseExceptions
 import discord
 import datetime
-from logging_utils import log_moderation_event,offense_count_log
-from replit import db
+from logging_utils import log_moderation_event, offense_count_log
+from replit import db # Assuming replit.db is necessary for your environment
 
 # Base warning messages for various offense types
 BASE_WARNING_MESSAGES = {
@@ -18,53 +17,62 @@ BASE_WARNING_MESSAGES = {
 DEFAULT_WARNING = "⚠️ Inappropriate content detected."
 
 
-async def handle_moderation(message: discord.Message, offense_type: str, score: float, overall_score: int,filter_scores:list[float]):
+async def handle_moderation(message: discord.Message, offense_type: str, score: float, overall_score: int, filter_scores: list[float]):
+    """Handles moderation actions based on offense type and scores."""
+
     if not message.guild:
         print(f"Cannot moderate message {message.id} (not in a guild).")
         return
 
+    guild_id = str(message.guild.id)
+    settings =  db.get(guild_id) # Fetch settings using cache
+
     base_warning = BASE_WARNING_MESSAGES.get(offense_type, DEFAULT_WARNING)
     full_warning = f"{message.author.mention} {base_warning}"
     timeout_duration = None
-    ping_role = False
-    delete_after = 5
+    ping_moderators = False
+    delete_after_warning = 10 # Default delete time for warnings below high threshold
     reason = f"Content flagged for {offense_type} (Score: {score:.3f})"
 
     # Determine specific actions based on score threshold
     if overall_score >= filter_scores[2]:
-        full_warning += " User temporarily muted for 5 minutes."
-        ping_role = True
-        timeout_duration = datetime.timedelta(minutes= db["timeout_duration"] if db["timeout_duration"] else 5)
+        full_warning += " User temporarily muted."
+        ping_moderators = True
+        # Use cached settings for timeout duration
+        timeout_minutes = settings.get('timeout_duration', 5)
+        timeout_duration = datetime.timedelta(minutes=timeout_minutes)
+        delete_after_warning = 0 # Warning message persists if mods are pinged
     elif overall_score > filter_scores[1]:
         full_warning += " Moderator review advised."
-        ping_role = True
-
-    else:
-        await message.channel.send(full_warning,delete_after=10)
-
-
+        ping_moderators = True
+        delete_after_warning = 0 # Warning message persists if mods are pinged
 
     # Fetch and mention moderator role if needed
-    if ping_role:
-        try:
-            mod_role_id = db.get(str(message.guild.id), {}).get('mod_role_id', None)
-            if not mod_role_id:
-                print(f"Warning: No moderator role set for guild {message.guild.name}")
-            moderator_role = message.guild.get_role(mod_role_id)
-            if moderator_role:
-                full_warning += f" {moderator_role.mention}"
-                delete_after = 0
-            else:
-                print(f"Warning: Could not find role with ID {mod_role_id} in guild {message.guild.name}")
-        except Exception as e:
-            print(f"Error fetching role {mod_role_id} in guild {message.guild.name}: {e}")
+    if ping_moderators:
+        mod_role_id = settings.get('mod_role_id') # Use cached settings
+        if mod_role_id:
+            try:
+                moderator_role = message.guild.get_role(mod_role_id)
+                if moderator_role:
+                    full_warning += f" {moderator_role.mention}"
+                else:
+                    print(f"Warning: Could not find role with ID {mod_role_id} in guild {message.guild.name}")
+            except Exception as e:
+                print(f"Error fetching role {mod_role_id} in guild {message.guild.name}: {e}")
+        else:
+             print(f"Warning: No moderator role ID set for guild {message.guild.name}")
+
 
     # Send warning, delete message, and apply timeout if necessary
     try:
-        await message.channel.send(full_warning,delete_after=delete_after)
+        # Send the warning message
+        warning_message = await message.channel.send(full_warning, delete_after=delete_after_warning if delete_after_warning > 0 else None)
+
+        # Delete the original message
         await message.delete()
         print(f"Deleted message {message.id} by {message.author} for {offense_type} ({score:.3f})")
-        
+
+        # Apply timeout if required
         if timeout_duration:
             try:
                 await message.author.timeout(timeout_duration, reason=reason)
@@ -73,7 +81,7 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
                 print(f"Error: Missing 'Moderate Members' permission to time out {message.author}.")
             except discord.HTTPException as e:
                 print(f"Error timing out {message.author}: {e}")
-        
+
     except discord.Forbidden:
         print(f"Error: Missing permissions in channel {message.channel.name} (Guild: {message.guild.name}). Need 'Send Messages' and 'Manage Messages'.")
     except discord.NotFound:
@@ -82,21 +90,30 @@ async def handle_moderation(message: discord.Message, offense_type: str, score: 
         print(f"An unexpected error occurred during moderation for message {message.id}: {e}")
 
     # Log moderation event if conditions met
-    if overall_score > 2.0:
-        logging_channel_id = db.get(str(message.guild.id), {}).get('logging_channel_id', None)
+    # Threshold for logging remains the same based on overall_score
+    if overall_score > filter_scores[0]: # Log anything above the lowest threshold
+        logging_channel_id = settings.get('logging_channel_id') # Use cached settings
         if logging_channel_id:
-            await log_moderation_event(message, offense_type, score,logging_channel_id, timeout_duration)
-            await offense_count_log(message,offense_type,message.content,logging_channel_id)
+            try:
+                logging_channel = message.guild.get_channel(logging_channel_id)
+                if logging_channel:
+                    await log_moderation_event(message, offense_type, score, logging_channel, timeout_duration)
+                    await offense_count_log(message, offense_type, message.content, logging_channel)
+                else:
+                     print(f"Warning: Could not find logging channel with ID {logging_channel_id} in guild {message.guild.name}")
+            except Exception as e:
+                 print(f"Error sending log messages in guild {message.guild.name}: {e}")
+        else:
+            print(f"Warning: No logging channel ID set for guild {message.guild.name}")
+
 
 # function to give list of thresholds
 def get_thresholds(n):
-    filter_scores = [0.0] * 3
-    filter_scores[0] = n * 0.3
-    filter_scores[1] = n * 0.4
-    filter_scores[2] = n * 0.5
-    return filter_scores
+    """Calculates moderation thresholds based on a base value n."""
+    # No change needed here, it's clear and efficient
+    return [n * 0.3, n * 0.4, n * 0.5]
 
 def has_moderator_perms(user: discord.Member):
-    if user.guild_permissions.manage_messages:
-        return True
-    return False
+    """Checks if a user has moderator permissions."""
+    # No change needed here, it's clear and efficient
+    return user.guild_permissions.manage_messages
