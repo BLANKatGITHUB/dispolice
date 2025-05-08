@@ -64,21 +64,15 @@ Follow these steps to set up Dispolice on your local environment:
 
 ---
 
+## Note
+  This project was made in replit and uses replit key value db if you want to use it locally change the code or simply run it on replit.
+  You can ignore or delete replit related files if running locally.
+
 ## Usage
 
 1. Invite the bot to your Discord server by generating an invite link with the required permissions.
 2. Configure moderation settings using the bot's commands or configuration files.
 3. Let the bot automatically monitor and moderate your server.
-
----
-
-## Contributing
-
-We welcome contributions from the community! To contribute:
-
-1. Fork the repository.
-2. Create a new branch for your feature or bug fix.
-3. Submit a pull request with a detailed description of your changes.
 
 ---
 
